@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  RH
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  role         Role
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Company {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  active    Boolean    @default(true)
+  employees Employee[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Employee {
+  id        Int              @id @default(autoincrement())
+  name      String
+  code      String
+  hireDate  DateTime
+  active    Boolean          @default(true)
+  companyId Int
+  company   Company          @relation(fields: [companyId], references: [id])
+  periods   VacationPeriod[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([name])
+  @@index([active])
+  @@index([code])
+}
+
+model VacationPeriod {
+  id                       Int            @id @default(autoincrement())
+  employeeId               Int
+  employee                 Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  periodNumber             Int
+  overrideAcquisitionStart DateTime?
+  overrideAcquisitionEnd   DateTime?
+  overrideConcessionStart  DateTime?
+  overrideConcessionEnd    DateTime?
+  overrideDueDate          DateTime?
+  totalDays                Int            @default(30)
+  manuallyGranted          Boolean        @default(false)
+  notes                    String?
+  blocks                   VacationBlock[]
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  @@unique([employeeId, periodNumber])
+  @@index([employeeId])
+}
+
+model VacationBlock {
+  id               Int            @id @default(autoincrement())
+  vacationPeriodId Int
+  vacationPeriod   VacationPeriod @relation(fields: [vacationPeriodId], references: [id], onDelete: Cascade)
+  startDate        DateTime?
+  endDate          DateTime?
+  days             Int
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([vacationPeriodId])
+}
