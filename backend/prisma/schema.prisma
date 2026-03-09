@@ -32,20 +32,24 @@ model Company {
 }
 
 model Employee {
-  id        Int              @id @default(autoincrement())
-  name      String
-  code      String
-  hireDate  DateTime
-  active    Boolean          @default(true)
-  companyId Int
-  company   Company          @relation(fields: [companyId], references: [id])
-  periods   VacationPeriod[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id                   Int              @id @default(autoincrement())
+  name                 String
+  code                 String
+  jobTitle             String           @default("")
+  hireDate             DateTime
+  active               Boolean          @default(true)
+  companyId            Int
+  company              Company          @relation(fields: [companyId], references: [id])
+  cycleStartDate       DateTime?
+  cycleStartPeriod     Int?
+  periods              VacationPeriod[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   @@index([name])
   @@index([active])
   @@index([code])
+  @@index([companyId, code])
 }
 
 model VacationPeriod {
@@ -59,7 +63,9 @@ model VacationPeriod {
   overrideConcessionEnd    DateTime?
   overrideDueDate          DateTime?
   totalDays                Int            @default(30)
+  importedUsedDays         Int            @default(0)
   manuallyGranted          Boolean        @default(false)
+  isAway                   Boolean        @default(false)
   notes                    String?
   blocks                   VacationBlock[]
   createdAt                DateTime       @default(now())

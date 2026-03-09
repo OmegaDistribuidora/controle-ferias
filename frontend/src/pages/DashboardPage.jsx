@@ -16,6 +16,7 @@ const urgencyLabels = {
 export default function DashboardPage() {
   const { token } = useAuth();
   const [rows, setRows] = useState([]);
+  const [includeAway, setIncludeAway] = useState(false);
   const [summary, setSummary] = useState({
     employees: 0,
     periodsOpen: 0,
@@ -29,7 +30,7 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError("");
-      const payload = await apiJson("/dashboard", { token });
+      const payload = await apiJson(`/dashboard?includeAway=${includeAway}`, { token });
       setRows(payload.rows);
       setSummary(payload.summary);
     } catch (requestError) {
@@ -41,7 +42,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboard();
-  }, []);
+  }, [includeAway]);
 
   return (
     <div className="page-stack">
@@ -55,6 +56,15 @@ export default function DashboardPage() {
           Atualizar
         </button>
       </div>
+
+      <label className="checkbox-row dashboard-toggle">
+        <input
+          type="checkbox"
+          checked={includeAway}
+          onChange={(event) => setIncludeAway(event.target.checked)}
+        />
+        Mostrar periodos afastados
+      </label>
 
       <section className="kpi-grid">
         <article className="kpi-card">
@@ -107,7 +117,7 @@ export default function DashboardPage() {
                     <td>{formatDate(row.hireDate)}</td>
                     <td>{formatPeriod(row.acquisitionStart, row.acquisitionEnd)}</td>
                     <td>{formatPeriod(row.concessionStart, row.concessionEnd)}</td>
-                    <td>{row.remainingDays}</td>
+                    <td>{row.isAway ? `${row.remainingDays} (Afastado)` : row.remainingDays}</td>
                     <td>{formatDate(row.dueDate)}</td>
                   </tr>
                 ))}

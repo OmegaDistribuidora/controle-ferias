@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PencilLine, X } from "lucide-react";
+import { PencilLine, RefreshCw, X } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../components/AuthProvider";
 import { apiJson } from "../services/api";
@@ -8,8 +8,15 @@ import { formatDate, formatPeriod } from "../services/date";
 const emptyEmployeeForm = {
   name: "",
   code: "",
+  jobTitle: "",
   companyId: "",
   hireDate: "",
+};
+
+const emptyCycleForm = {
+  startPeriodId: "",
+  anchorDay: "",
+  anchorMonth: "",
 };
 
 const emptyBlockForm = {
@@ -26,7 +33,9 @@ function buildPeriodForm(period) {
     concessionEnd: period.concessionEnd || "",
     dueDate: period.dueDate || "",
     totalDays: String(period.totalDays || 30),
+    importedUsedDays: String(period.importedUsedDays || 0),
     manuallyGranted: Boolean(period.manuallyGranted),
+    isAway: Boolean(period.isAway),
   };
 }
 
@@ -53,6 +62,7 @@ export default function EmployeeDetailsPage() {
   const [employee, setEmployee] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [employeeForm, setEmployeeForm] = useState(emptyEmployeeForm);
+  const [cycleForm, setCycleForm] = useState(emptyCycleForm);
   const [periodForms, setPeriodForms] = useState({});
   const [blockForms, setBlockForms] = useState({});
   const [editBlocks, setEditBlocks] = useState({});
@@ -61,6 +71,7 @@ export default function EmployeeDetailsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingEmployee, setSavingEmployee] = useState(false);
+  const [savingCycle, setSavingCycle] = useState(false);
 
   async function loadPage() {
     try {
@@ -76,8 +87,18 @@ export default function EmployeeDetailsPage() {
       setEmployeeForm({
         name: nextEmployee.name,
         code: nextEmployee.code,
+        jobTitle: nextEmployee.jobTitle || "",
         companyId: String(nextEmployee.companyId),
         hireDate: nextEmployee.hireDate,
+      });
+      setCycleForm({
+        startPeriodId: nextEmployee.cycleStartPeriod != null
+          ? String(
+              nextEmployee.periods.find((period) => period.periodNumber === nextEmployee.cycleStartPeriod)?.id || ""
+            )
+          : "",
+        anchorDay: nextEmployee.cycleStartDate ? String(Number(nextEmployee.cycleStartDate.slice(8, 10))) : "",
+        anchorMonth: nextEmployee.cycleStartDate ? String(Number(nextEmployee.cycleStartDate.slice(5, 7))) : "",
       });
       setPeriodForms(
         Object.fromEntries(nextEmployee.periods.map((period) => [period.id, buildPeriodForm(period)]))
@@ -128,10 +149,33 @@ export default function EmployeeDetailsPage() {
     setEmployeeForm({
       name: employee.name,
       code: employee.code,
+      jobTitle: employee.jobTitle || "",
       companyId: String(employee.companyId),
       hireDate: employee.hireDate,
     });
     setEditingEmployee(false);
+  }
+
+  async function handleApplyCycle(event) {
+    event.preventDefault();
+    try {
+      setSavingCycle(true);
+      setError("");
+      await apiJson(`/employees/${id}/cycle`, {
+        token,
+        method: "POST",
+        data: {
+          startPeriodId: Number(cycleForm.startPeriodId),
+          anchorDay: Number(cycleForm.anchorDay),
+          anchorMonth: Number(cycleForm.anchorMonth),
+        },
+      });
+      await loadPage();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSavingCycle(false);
+    }
   }
 
   async function handlePeriodSave(periodId) {
@@ -148,7 +192,9 @@ export default function EmployeeDetailsPage() {
           concessionEnd: form.concessionEnd || null,
           dueDate: form.dueDate || null,
           totalDays: Number(form.totalDays),
+          importedUsedDays: Number(form.importedUsedDays),
           manuallyGranted: form.manuallyGranted,
+          isAway: form.isAway,
         },
       });
       setEditingPeriods((current) => ({
@@ -251,7 +297,7 @@ export default function EmployeeDetailsPage() {
         <div>
           <div className="eyebrow">Perfil do funcionario</div>
           <h1>{employee.name}</h1>
-          <p>Edite os dados principais e controle os blocos de ferias por periodo.</p>
+          <p>Edite os dados principais, o ciclo aquisitivo e os periodos de ferias.</p>
         </div>
       </div>
 
@@ -292,6 +338,14 @@ export default function EmployeeDetailsPage() {
             />
           </label>
           <label>
+            Cargo
+            <input
+              value={employeeForm.jobTitle}
+              onChange={(event) => setEmployeeForm({ ...employeeForm, jobTitle: event.target.value })}
+              disabled={!editingEmployee}
+            />
+          </label>
+          <label>
             Empresa
             <select
               value={employeeForm.companyId}
@@ -324,13 +378,65 @@ export default function EmployeeDetailsPage() {
         </form>
       </section>
 
+      <section className="panel cycle-panel">
+        <div className="section-head">
+          <h2>Ajuste do ciclo aquisitivo</h2>
+          <span className="muted-text">Use isso quando o aniversario do periodo mudar apos afastamento prolongado.</span>
+        </div>
+        <form className="form-grid cycle-form" onSubmit={handleApplyCycle}>
+          <label>
+            Aplicar a partir do periodo
+            <select
+              value={cycleForm.startPeriodId}
+              onChange={(event) => setCycleForm({ ...cycleForm, startPeriodId: event.target.value })}
+              required
+            >
+              <option value="">Selecione</option>
+              {employee.periods.map((period) => (
+                <option key={period.id} value={period.id}>
+                  Periodo #{period.periodNumber + 1} ({formatPeriod(period.acquisitionStart, period.acquisitionEnd)})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Novo dia
+            <input
+              type="number"
+              min="1"
+              max="31"
+              value={cycleForm.anchorDay}
+              onChange={(event) => setCycleForm({ ...cycleForm, anchorDay: event.target.value })}
+              required
+            />
+          </label>
+          <label>
+            Novo mes
+            <input
+              type="number"
+              min="1"
+              max="12"
+              value={cycleForm.anchorMonth}
+              onChange={(event) => setCycleForm({ ...cycleForm, anchorMonth: event.target.value })}
+              required
+            />
+          </label>
+          <button className="ghost-btn icon-text-btn fit-btn" type="submit" disabled={savingCycle}>
+            <RefreshCw size={15} />
+            {savingCycle ? "Aplicando..." : "Aplicar novo ciclo"}
+          </button>
+        </form>
+      </section>
+
       {employee.periods.map((period) => {
         const periodForm = periodForms[period.id] || buildPeriodForm(period);
         const isEditingPeriod = Boolean(editingPeriods[period.id]);
+        const isLockedByAway = Boolean(periodForm.isAway);
+
         return (
           <section
             key={period.id}
-            className={`panel period-card ${period.urgency.toLowerCase()} ${period.granted ? "granted-period" : ""}`}
+            className={`panel period-card ${period.urgency.toLowerCase()} ${period.granted ? "granted-period" : ""} ${period.isAway ? "away-period" : ""}`}
           >
             <div className="period-header">
               <div>
@@ -345,8 +451,9 @@ export default function EmployeeDetailsPage() {
 
               <div className="period-meta">
                 <span className="badge badge-strong">{period.remainingDays} dias restantes</span>
+                {period.isAway ? <span className="badge away-badge">Afastado</span> : null}
                 <span className={`badge ${period.granted ? "badge-success-soft" : ""}`}>
-                  {period.granted ? "Férias concedidas" : "Em aberto"}
+                  {period.granted ? "Ferias concedidas" : "Em aberto"}
                 </span>
                 <span className="badge">Vence em {formatDate(period.dueDate)}</span>
                 <button className="ghost-btn icon-text-btn" type="button" onClick={() => handleTogglePeriodEdit(period)}>
@@ -364,12 +471,19 @@ export default function EmployeeDetailsPage() {
 
             {isEditingPeriod ? (
               <>
+                {isLockedByAway ? (
+                  <p className="warning-note">
+                    Este periodo esta marcado como afastado. Para alterar datas, dias ou blocos, desmarque primeiro a opcao de afastado.
+                  </p>
+                ) : null}
+
                 <div className="form-grid period-edit-grid">
                   <label>
                     Inicio aquisitivo
                     <input
                       type="date"
                       value={periodForm.acquisitionStart}
+                      disabled={isLockedByAway}
                       onChange={(event) =>
                         setPeriodForms((current) => ({
                           ...current,
@@ -383,6 +497,7 @@ export default function EmployeeDetailsPage() {
                     <input
                       type="date"
                       value={periodForm.acquisitionEnd}
+                      disabled={isLockedByAway}
                       onChange={(event) =>
                         setPeriodForms((current) => ({
                           ...current,
@@ -396,6 +511,7 @@ export default function EmployeeDetailsPage() {
                     <input
                       type="date"
                       value={periodForm.concessionStart}
+                      disabled={isLockedByAway}
                       onChange={(event) =>
                         setPeriodForms((current) => ({
                           ...current,
@@ -409,6 +525,7 @@ export default function EmployeeDetailsPage() {
                     <input
                       type="date"
                       value={periodForm.concessionEnd}
+                      disabled={isLockedByAway}
                       onChange={(event) =>
                         setPeriodForms((current) => ({
                           ...current,
@@ -422,6 +539,7 @@ export default function EmployeeDetailsPage() {
                     <input
                       type="date"
                       value={periodForm.dueDate}
+                      disabled={isLockedByAway}
                       onChange={(event) =>
                         setPeriodForms((current) => ({
                           ...current,
@@ -436,6 +554,7 @@ export default function EmployeeDetailsPage() {
                       type="number"
                       min="1"
                       value={periodForm.totalDays}
+                      disabled={isLockedByAway}
                       onChange={(event) =>
                         setPeriodForms((current) => ({
                           ...current,
@@ -444,18 +563,49 @@ export default function EmployeeDetailsPage() {
                       }
                     />
                   </label>
+                  <label>
+                    Dias ja utilizados (ajuste)
+                    <input
+                      type="number"
+                      min="0"
+                      max="30"
+                      value={periodForm.importedUsedDays}
+                      disabled={isLockedByAway}
+                      onChange={(event) =>
+                        setPeriodForms((current) => ({
+                          ...current,
+                          [period.id]: { ...periodForm, importedUsedDays: event.target.value },
+                        }))
+                      }
+                    />
+                  </label>
                 </div>
 
                 <div className="period-tools">
                   <label className="toggle-card">
-                    <span>Marcar como Férias concedidas</span>
+                    <span>Marcar como Ferias concedidas</span>
                     <input
                       type="checkbox"
                       checked={periodForm.manuallyGranted}
+                      disabled={isLockedByAway}
                       onChange={(event) =>
                         setPeriodForms((current) => ({
                           ...current,
                           [period.id]: { ...periodForm, manuallyGranted: event.target.checked },
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="toggle-card">
+                    <span>Marcar periodo como afastado</span>
+                    <input
+                      type="checkbox"
+                      checked={periodForm.isAway}
+                      onChange={(event) =>
+                        setPeriodForms((current) => ({
+                          ...current,
+                          [period.id]: { ...periodForm, isAway: event.target.checked },
                         }))
                       }
                     />
@@ -481,12 +631,14 @@ export default function EmployeeDetailsPage() {
                       {period.blocks.map((block) => {
                         const blockForm = editBlocks[period.id]?.[block.id] || buildBlockForm(block);
                         const calculatedDays = calculateBlockDays(blockForm.startDate, blockForm.endDate);
+
                         return (
                           <tr key={block.id}>
                             <td>
                               <input
                                 type="date"
                                 value={blockForm.startDate}
+                                disabled={isLockedByAway}
                                 onChange={(event) =>
                                   setEditBlocks((current) => ({
                                     ...current,
@@ -502,6 +654,7 @@ export default function EmployeeDetailsPage() {
                               <input
                                 type="date"
                                 value={blockForm.endDate}
+                                disabled={isLockedByAway}
                                 onChange={(event) =>
                                   setEditBlocks((current) => ({
                                     ...current,
@@ -519,6 +672,7 @@ export default function EmployeeDetailsPage() {
                             <td>
                               <input
                                 value={blockForm.notes}
+                                disabled={isLockedByAway}
                                 onChange={(event) =>
                                   setEditBlocks((current) => ({
                                     ...current,
@@ -531,10 +685,20 @@ export default function EmployeeDetailsPage() {
                               />
                             </td>
                             <td className="actions-cell">
-                              <button className="ghost-btn" type="button" onClick={() => handleSaveBlock(period.id, block.id)}>
+                              <button
+                                className="ghost-btn"
+                                type="button"
+                                disabled={isLockedByAway}
+                                onClick={() => handleSaveBlock(period.id, block.id)}
+                              >
                                 Salvar
                               </button>
-                              <button className="ghost-btn" type="button" onClick={() => handleDeleteBlock(period.id, block.id)}>
+                              <button
+                                className="ghost-btn"
+                                type="button"
+                                disabled={isLockedByAway}
+                                onClick={() => handleDeleteBlock(period.id, block.id)}
+                              >
                                 Excluir
                               </button>
                             </td>
@@ -557,60 +721,63 @@ export default function EmployeeDetailsPage() {
 
                     return (
                       <>
-                  <label>
-                    Inicio
-                    <input
-                      type="date"
-                      value={form.startDate}
-                      onChange={(event) =>
-                        setBlockForms((current) => ({
-                          ...current,
-                          [period.id]: {
-                            ...(current[period.id] || emptyBlockForm),
-                            startDate: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Fim
-                    <input
-                      type="date"
-                      value={form.endDate}
-                      onChange={(event) =>
-                        setBlockForms((current) => ({
-                          ...current,
-                          [period.id]: {
-                            ...(current[period.id] || emptyBlockForm),
-                            endDate: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Dias
-                    <input type="text" value={calculatedDays || "-"} disabled />
-                  </label>
-                  <label>
-                    Observacao
-                    <input
-                      value={form.notes}
-                      onChange={(event) =>
-                        setBlockForms((current) => ({
-                          ...current,
-                          [period.id]: {
-                            ...(current[period.id] || emptyBlockForm),
-                            notes: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                  <button className="primary-btn fit-btn period-add-btn" type="submit">
-                    Adicionar periodo de ferias
-                  </button>
+                        <label>
+                          Inicio
+                          <input
+                            type="date"
+                            value={form.startDate}
+                            disabled={isLockedByAway}
+                            onChange={(event) =>
+                              setBlockForms((current) => ({
+                                ...current,
+                                [period.id]: {
+                                  ...(current[period.id] || emptyBlockForm),
+                                  startDate: event.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          Fim
+                          <input
+                            type="date"
+                            value={form.endDate}
+                            disabled={isLockedByAway}
+                            onChange={(event) =>
+                              setBlockForms((current) => ({
+                                ...current,
+                                [period.id]: {
+                                  ...(current[period.id] || emptyBlockForm),
+                                  endDate: event.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          Dias
+                          <input type="text" value={calculatedDays || "-"} disabled />
+                        </label>
+                        <label>
+                          Observacao
+                          <input
+                            value={form.notes}
+                            disabled={isLockedByAway}
+                            onChange={(event) =>
+                              setBlockForms((current) => ({
+                                ...current,
+                                [period.id]: {
+                                  ...(current[period.id] || emptyBlockForm),
+                                  notes: event.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </label>
+                        <button className="primary-btn fit-btn period-add-btn" type="submit" disabled={isLockedByAway}>
+                          Adicionar periodo de ferias
+                        </button>
                       </>
                     );
                   })()}

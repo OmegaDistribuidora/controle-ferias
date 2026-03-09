@@ -1,8 +1,21 @@
 const { formatDate, dayjs, parseDateInput, todayUtc } = require("./date");
 
-function buildBasePeriod(hireDate, periodNumber) {
-  const hire = dayjs.utc(hireDate).startOf("day");
-  const acquisitionStart = hire.add(periodNumber, "year");
+function getPeriodAnchor(employee, periodNumber) {
+  if (
+    employee.cycleStartDate &&
+    typeof employee.cycleStartPeriod === "number" &&
+    periodNumber >= employee.cycleStartPeriod
+  ) {
+    const anchor = dayjs.utc(employee.cycleStartDate).startOf("day");
+    return anchor.add(periodNumber - employee.cycleStartPeriod, "year");
+  }
+
+  const hire = dayjs.utc(employee.hireDate).startOf("day");
+  return hire.add(periodNumber, "year");
+}
+
+function buildBasePeriod(employee, periodNumber) {
+  const acquisitionStart = getPeriodAnchor(employee, periodNumber);
   const acquisitionEnd = acquisitionStart.add(1, "year").subtract(1, "day");
   const concessionStart = acquisitionEnd.add(1, "day");
   const concessionEnd = acquisitionEnd.add(11, "month");
@@ -17,8 +30,8 @@ function buildBasePeriod(hireDate, periodNumber) {
   };
 }
 
-function getEffectivePeriodDates(hireDate, period) {
-  const base = buildBasePeriod(hireDate, period.periodNumber);
+function getEffectivePeriodDates(employee, period) {
+  const base = buildBasePeriod(employee, period.periodNumber);
 
   return {
     acquisitionStart: period.overrideAcquisitionStart
@@ -96,7 +109,7 @@ async function syncEmployeePeriods(prisma, employee) {
 }
 
 function getUsedDays(period) {
-  return period.blocks.reduce((sum, block) => sum + block.days, 0);
+  return period.importedUsedDays + period.blocks.reduce((sum, block) => sum + block.days, 0);
 }
 
 function getRemainingDays(period) {
@@ -117,7 +130,7 @@ function getUrgency(dueDate) {
 }
 
 function serializeVacationPeriod(employee, period) {
-  const effective = getEffectivePeriodDates(employee.hireDate, period);
+  const effective = getEffectivePeriodDates(employee, period);
   const usedDays = getUsedDays(period);
   const remainingDays = getRemainingDays(period);
   const granted = period.manuallyGranted || remainingDays === 0;
@@ -132,9 +145,11 @@ function serializeVacationPeriod(employee, period) {
     companyName: employee.company?.name,
     periodNumber: period.periodNumber,
     totalDays: period.totalDays,
+    importedUsedDays: period.importedUsedDays,
     usedDays,
     remainingDays,
     manuallyGranted: period.manuallyGranted,
+    isAway: period.isAway,
     granted,
     notes: period.notes || "",
     urgency: getUrgency(effective.dueDate),
@@ -161,6 +176,18 @@ function parseOptionalDate(value) {
   return value ? parseDateInput(value) : null;
 }
 
+function getPeriodNumberFromDate(hireDate, acquisitionStartDate) {
+  const hire = dayjs.utc(hireDate).startOf("day");
+  const start = dayjs.utc(acquisitionStartDate).startOf("day");
+  let periodNumber = start.year() - hire.year();
+
+  if (start.month() < hire.month() || (start.month() === hire.month() && start.date() < hire.date())) {
+    periodNumber -= 1;
+  }
+
+  return Math.max(periodNumber, 0);
+}
+
 function calculateBlockDays(startDate, endDate) {
   const start = dayjs.utc(startDate).startOf("day");
   const end = dayjs.utc(endDate).startOf("day");
@@ -177,6 +204,7 @@ module.exports = {
   calculateBlockDays,
   getEffectivePeriodDates,
   getEligiblePeriodCount,
+  getPeriodNumberFromDate,
   getRemainingDays,
   getUsedDays,
   getUrgency,

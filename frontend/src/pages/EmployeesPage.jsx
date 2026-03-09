@@ -7,6 +7,7 @@ import { formatDate } from "../services/date";
 const initialForm = {
   name: "",
   code: "",
+  jobTitle: "",
   companyId: "",
   hireDate: "",
 };
@@ -108,6 +109,14 @@ export default function EmployeesPage() {
             <label>
               Codigo
               <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required />
+            </label>
+            <label>
+              Cargo
+              <input
+                value={form.jobTitle}
+                onChange={(event) => setForm({ ...form, jobTitle: event.target.value })}
+                required
+              />
             </label>
             <label>
               Empresa

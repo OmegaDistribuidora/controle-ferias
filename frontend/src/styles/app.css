@@ -220,6 +220,11 @@ p {
   color: var(--muted);
 }
 
+.warning-note {
+  color: #f1c88a;
+  font-size: 0.9rem;
+}
+
 .header-actions {
   display: flex;
   gap: 0.6rem;
@@ -287,6 +292,10 @@ p {
 }
 
 .employee-form {
+  align-items: end;
+}
+
+.cycle-form {
   align-items: end;
 }
 
@@ -399,6 +408,11 @@ p {
   color: #cdebe3;
 }
 
+.away-badge {
+  border-color: rgba(96, 126, 176, 0.45);
+  color: #d5e2ff;
+}
+
 .badge-muted {
   opacity: 0.75;
 }
@@ -439,6 +453,10 @@ p {
 
 .period-card.granted-period {
   border-color: rgba(47, 157, 130, 0.42);
+}
+
+.period-card.away-period {
+  border-color: rgba(96, 126, 176, 0.42);
 }
 
 .period-header,
@@ -506,6 +524,10 @@ p {
 
 .period-edit-grid {
   margin-top: 0.15rem;
+}
+
+.dashboard-toggle {
+  margin-top: -0.2rem;
 }
 
 .sidebar-nav {

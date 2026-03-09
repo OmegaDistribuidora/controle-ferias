@@ -9,6 +9,7 @@ const router = express.Router();
 router.use(authRequired);
 
 router.get("/", async (req, res) => {
+  const includeAway = req.query.includeAway === "true";
   const employees = await prisma.employee.findMany({
     where: { active: true },
     include: {
@@ -39,7 +40,7 @@ router.get("/", async (req, res) => {
     .flatMap((employee) =>
       employee.periods.map((period) => serializeVacationPeriod(employee, period))
     )
-    .filter((period) => !period.granted)
+    .filter((period) => !period.granted && (includeAway || !period.isAway))
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
   const summary = {
@@ -53,4 +54,3 @@ router.get("/", async (req, res) => {
 });
 
 module.exports = router;
-

@@ -11,6 +11,7 @@
     "dev:backend": "npm run dev --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
     "build": "npm run build --workspace frontend",
+    "import:vacations": "npm run import:vacations --workspace backend --",
     "start": "npm run start --workspace backend",
     "railway:start": "npm run prisma:generate --workspace backend && npm run prisma:push --workspace backend && npm run build --workspace frontend && npm run start --workspace backend",
     "prisma:generate": "npm run prisma:generate --workspace backend",
@@ -21,4 +22,3 @@
     "concurrently": "^9.2.1"
   }
 }
-
