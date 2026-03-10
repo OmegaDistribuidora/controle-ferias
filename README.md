@@ -4,7 +4,7 @@ Sistema de controle de ferias para RH, com frontend em React/Vite, backend em Ex
 
 ## Recursos implementados
 
-- Login com usuario inicial `admin` e senha `Omega@123`
+- Autenticacao com usuario administrador inicial configurado no sistema
 - Cadastro de empresas e usuarios por admin
 - Cadastro de funcionarios com calculo automatico dos periodos aquisitivo, concessivo e data de vencimento
 - Dashboard em formato de planilha exibindo apenas periodos pendentes

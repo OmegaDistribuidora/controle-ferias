@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { apiJson } from "../services/api";
+import { apiJson, setUnauthorizedHandler } from "../services/api";
 
 const STORAGE_KEY = "controle-ferias-auth";
 const AuthContext = createContext(null);
@@ -13,6 +13,20 @@ function readStorage() {
   }
 }
 
+function getTokenExpiration(token) {
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return null;
+
+    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, "=");
+    const decoded = JSON.parse(atob(paddedPayload));
+    return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
   const initial = readStorage();
   const [token, setToken] = useState(initial.token || null);
@@ -22,6 +36,17 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user }));
   }, [token, user]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setToken(null);
+      setUser(null);
+    });
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
 
   useEffect(() => {
     if (!token || user) {
@@ -50,6 +75,33 @@ export function AuthProvider({ children }) {
       active = false;
     };
   }, [token, user]);
+
+  useEffect(() => {
+    if (!token) {
+      return undefined;
+    }
+
+    const expirationTime = getTokenExpiration(token);
+    if (!expirationTime) {
+      return undefined;
+    }
+
+    const timeoutMs = expirationTime - Date.now();
+    if (timeoutMs <= 0) {
+      setToken(null);
+      setUser(null);
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToken(null);
+      setUser(null);
+    }, timeoutMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [token]);
 
   const value = useMemo(
     () => ({
@@ -83,4 +135,3 @@ export function useAuth() {
   }
   return context;
 }
-
