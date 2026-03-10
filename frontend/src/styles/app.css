@@ -326,6 +326,15 @@ p {
   font-weight: 600;
 }
 
+.audit-table {
+  min-width: 1080px;
+}
+
+.audit-description {
+  white-space: normal;
+  min-width: 360px;
+}
+
 .dashboard-table tr.risk-5 td {
   background: var(--yellow-soft);
 }

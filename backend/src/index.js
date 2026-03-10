@@ -13,6 +13,7 @@ const userRoutes = require("./routes/users");
 const companyRoutes = require("./routes/companies");
 const employeeRoutes = require("./routes/employees");
 const dashboardRoutes = require("./routes/dashboard");
+const auditRoutes = require("./routes/audit");
 
 const envPaths = [
   path.resolve(process.cwd(), ".env"),
@@ -46,6 +47,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/audit", auditRoutes);
 
 const frontendDistPath = path.resolve(__dirname, "..", "..", "frontend", "dist");
 if (fs.existsSync(frontendDistPath)) {

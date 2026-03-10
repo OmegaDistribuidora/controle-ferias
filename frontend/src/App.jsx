@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AuditPage from "./pages/AuditPage";
 import CompaniesPage from "./pages/CompaniesPage";
 import DashboardPage from "./pages/DashboardPage";
 import EmployeeDetailsPage from "./pages/EmployeeDetailsPage";
@@ -25,8 +26,8 @@ export default function App() {
         <Route path="funcionarios/:id" element={<EmployeeDetailsPage />} />
         <Route path="usuarios" element={<UsersPage />} />
         <Route path="empresas" element={<CompaniesPage />} />
+        <Route path="auditoria" element={<AuditPage />} />
       </Route>
     </Routes>
   );
 }
-

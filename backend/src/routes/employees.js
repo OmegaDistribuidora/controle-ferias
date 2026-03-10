@@ -12,6 +12,7 @@ const {
   serializeVacationPeriod,
   syncEmployeePeriods,
 } = require("../utils/vacation");
+const { writeAuditLog } = require("../services/audit");
 
 const router = express.Router();
 
@@ -92,6 +93,10 @@ function isAwayUnlockOnly(payload) {
   return keys.length === 1 && keys[0] === "isAway" && payload.isAway === false;
 }
 
+function describePeriod(periodNumber) {
+  return `Periodo #${periodNumber + 1}`;
+}
+
 router.get("/", async (req, res) => {
   const includeInactive = req.query.includeInactive === "true";
   const search = String(req.query.search || "").trim();
@@ -170,6 +175,14 @@ router.post("/", async (req, res) => {
 
   await syncEmployeePeriods(prisma, employee);
 
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "CREATE_EMPLOYEE",
+    entityType: "EMPLOYEE",
+    entityId: employee.id,
+    description: `Criou o funcionario ${employee.name} (${employee.code}) na empresa ${employee.company.name}.`,
+  });
+
   return res.status(201).json({
     employee: {
       id: employee.id,
@@ -212,6 +225,14 @@ router.get("/:id", async (req, res) => {
         orderBy: { periodNumber: "asc" },
       },
     },
+  });
+
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "ADJUST_CYCLE",
+    entityType: "EMPLOYEE",
+    entityId: refreshed.id,
+    description: `Ajustou o ciclo aquisitivo de ${refreshed.name} a partir do ${describePeriod(targetPeriod.periodNumber)} para ${String(parsed.data.anchorDay).padStart(2, "0")}/${String(parsed.data.anchorMonth).padStart(2, "0")}.`,
   });
 
   return res.json({
@@ -285,6 +306,24 @@ router.patch("/:id", async (req, res) => {
   });
 
   await syncEmployeePeriods(prisma, employee);
+
+  const employeeChangeParts = [];
+  if (parsed.data.name) employeeChangeParts.push("nome");
+  if (parsed.data.code) employeeChangeParts.push("codigo");
+  if (parsed.data.jobTitle) employeeChangeParts.push("cargo");
+  if (parsed.data.companyId) employeeChangeParts.push("empresa");
+  if (parsed.data.hireDate) employeeChangeParts.push("admissao");
+  if (typeof parsed.data.active === "boolean") {
+    employeeChangeParts.push(employee.active ? "reativado" : "inativado");
+  }
+
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "UPDATE_EMPLOYEE",
+    entityType: "EMPLOYEE",
+    entityId: employee.id,
+    description: `Atualizou o funcionario ${employee.name} (${employee.code})${employeeChangeParts.length ? `: ${employeeChangeParts.join(", ")}` : ""}.`,
+  });
 
   return res.json({
     employee: {
@@ -407,6 +446,7 @@ router.patch("/:id/periods/:periodId", async (req, res) => {
   const periodId = Number(req.params.periodId);
   const period = await prisma.vacationPeriod.findFirst({
     where: { id: periodId, employeeId },
+    include: { employee: true },
   });
 
   if (!period) {
@@ -453,6 +493,32 @@ router.patch("/:id/periods/:periodId", async (req, res) => {
     },
   });
 
+  const periodChanges = [];
+  if (parsed.data.totalDays !== undefined) periodChanges.push("total de dias");
+  if (parsed.data.importedUsedDays !== undefined) periodChanges.push("dias utilizados");
+  if (parsed.data.manuallyGranted !== undefined) {
+    periodChanges.push(parsed.data.manuallyGranted ? "marcado como ferias concedidas" : "reaberto");
+  }
+  if (parsed.data.isAway !== undefined) {
+    periodChanges.push(parsed.data.isAway ? "marcado como afastado" : "afastamento removido");
+  }
+  if (parsed.data.notes !== undefined) periodChanges.push("observacao");
+  if (parsed.data.acquisitionStart !== undefined || parsed.data.acquisitionEnd !== undefined) {
+    periodChanges.push("datas aquisitivas");
+  }
+  if (parsed.data.concessionStart !== undefined || parsed.data.concessionEnd !== undefined) {
+    periodChanges.push("datas concessivas");
+  }
+  if (parsed.data.dueDate !== undefined) periodChanges.push("vencimento");
+
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "UPDATE_PERIOD",
+    entityType: "VACATION_PERIOD",
+    entityId: updated.id,
+    description: `Atualizou o ${describePeriod(updated.periodNumber)} de ${updated.employee.name}${periodChanges.length ? `: ${periodChanges.join(", ")}` : ""}.`,
+  });
+
   return res.json({
     period: serializeVacationPeriod(updated.employee, updated),
   });
@@ -494,6 +560,14 @@ router.post("/:id/periods/:periodId/blocks", async (req, res) => {
     },
   });
 
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "CREATE_BLOCK",
+    entityType: "VACATION_BLOCK",
+    entityId: block.id,
+    description: `Adicionou bloco de ferias em ${period.employee.name} no ${describePeriod(period.periodNumber)} (${formatDate(block.startDate)} a ${formatDate(block.endDate)}).`,
+  });
+
   return res.status(201).json({
     block: {
       id: block.id,
@@ -519,7 +593,9 @@ router.patch("/:id/periods/:periodId/blocks/:blockId", async (req, res) => {
       vacationPeriodId: periodId,
     },
     include: {
-      vacationPeriod: true,
+      vacationPeriod: {
+        include: { employee: true },
+      },
     },
   });
 
@@ -547,6 +623,14 @@ router.patch("/:id/periods/:periodId/blocks/:blockId", async (req, res) => {
     },
   });
 
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "UPDATE_BLOCK",
+    entityType: "VACATION_BLOCK",
+    entityId: updated.id,
+    description: `Atualizou bloco de ferias de ${block.vacationPeriod.employee.name} no ${describePeriod(block.vacationPeriod.periodNumber)} (${formatDate(updated.startDate)} a ${formatDate(updated.endDate)}).`,
+  });
+
   return res.json({
     block: {
       id: updated.id,
@@ -562,7 +646,11 @@ router.delete("/:id/periods/:periodId/blocks/:blockId", async (req, res) => {
   const blockId = Number(req.params.blockId);
   const block = await prisma.vacationBlock.findUnique({
     where: { id: blockId },
-    include: { vacationPeriod: true },
+    include: {
+      vacationPeriod: {
+        include: { employee: true },
+      },
+    },
   });
 
   if (!block) {
@@ -577,6 +665,14 @@ router.delete("/:id/periods/:periodId/blocks/:blockId", async (req, res) => {
 
   await prisma.vacationBlock.delete({
     where: { id: blockId },
+  });
+
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "DELETE_BLOCK",
+    entityType: "VACATION_BLOCK",
+    entityId: blockId,
+    description: `Excluiu bloco de ferias de ${block.vacationPeriod.employee.name} no ${describePeriod(block.vacationPeriod.periodNumber)} (${formatDate(block.startDate)} a ${formatDate(block.endDate)}).`,
   });
 
   return res.status(204).send();

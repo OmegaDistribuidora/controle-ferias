@@ -5,6 +5,7 @@ const { z } = require("zod");
 
 const prisma = require("../db");
 const { authRequired, requireRole } = require("../middleware");
+const { writeAuditLog } = require("../services/audit");
 
 const router = express.Router();
 
@@ -66,6 +67,14 @@ router.post("/", async (req, res) => {
     },
   });
 
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "CREATE_USER",
+    entityType: "USER",
+    entityId: user.id,
+    description: `Criou o usuario ${user.username} com perfil ${user.role}.`,
+  });
+
   return res.status(201).json({ user });
 });
 
@@ -100,6 +109,21 @@ router.patch("/:id", async (req, res) => {
       active: true,
       createdAt: true,
     },
+  });
+
+  const actionParts = [];
+  if (parsed.data.password) actionParts.push("senha");
+  if (parsed.data.role) actionParts.push(`perfil ${user.role}`);
+  if (typeof parsed.data.active === "boolean") {
+    actionParts.push(user.active ? "reativacao" : "inativacao");
+  }
+
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "UPDATE_USER",
+    entityType: "USER",
+    entityId: user.id,
+    description: `Atualizou o usuario ${user.username}${actionParts.length ? ` (${actionParts.join(", ")})` : ""}.`,
   });
 
   return res.json({ user });

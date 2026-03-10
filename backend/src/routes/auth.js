@@ -6,6 +6,7 @@ const { z } = require("zod");
 const prisma = require("../db");
 const { jwtSecret } = require("../config");
 const { authRequired } = require("../middleware");
+const { writeAuditLog } = require("../services/audit");
 
 const router = express.Router();
 
@@ -42,6 +43,17 @@ router.post("/login", async (req, res) => {
     { expiresIn: "12h" }
   );
 
+  await writeAuditLog(prisma, {
+    user: {
+      id: user.id,
+      username: user.username,
+    },
+    action: "LOGIN",
+    entityType: "AUTH",
+    entityId: user.id,
+    description: `Usuario ${user.username} realizou login no sistema.`,
+  });
+
   return res.json({
     token,
     user: {
@@ -73,4 +85,3 @@ router.get("/me", authRequired, async (req, res) => {
 });
 
 module.exports = router;
-

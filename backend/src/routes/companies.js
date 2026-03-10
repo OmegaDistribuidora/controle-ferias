@@ -3,6 +3,7 @@ const { z } = require("zod");
 
 const prisma = require("../db");
 const { authRequired, requireRole } = require("../middleware");
+const { writeAuditLog } = require("../services/audit");
 
 const router = express.Router();
 
@@ -34,6 +35,14 @@ router.post("/", requireRole("ADMIN"), async (req, res) => {
     },
   });
 
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "CREATE_COMPANY",
+    entityType: "COMPANY",
+    entityId: company.id,
+    description: `Criou a empresa ${company.name}.`,
+  });
+
   return res.status(201).json({ company });
 });
 
@@ -51,8 +60,15 @@ router.patch("/:id", requireRole("ADMIN"), async (req, res) => {
     },
   });
 
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "UPDATE_COMPANY",
+    entityType: "COMPANY",
+    entityId: company.id,
+    description: `Atualizou a empresa ${company.name} para status ${company.active ? "ativa" : "inativa"}.`,
+  });
+
   return res.json({ company });
 });
 
 module.exports = router;
-

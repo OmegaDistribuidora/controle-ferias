@@ -1,6 +1,7 @@
 import {
   Building2,
   CalendarRange,
+  ClipboardList,
   LayoutDashboard,
   LogOut,
   Shield,
@@ -55,9 +56,13 @@ export default function AppLayout() {
                 <Users size={16} />
                 <span>Usuarios</span>
               </NavLink>
+              <NavLink to="/auditoria" className="nav-item">
+                <ClipboardList size={16} />
+                <span>Auditoria</span>
+              </NavLink>
               <div className="nav-note">
                 <Shield size={14} />
-                <span>Admin pode criar usuarios, empresas e inativar funcionarios.</span>
+                <span>Admin pode criar usuarios, empresas, inativar funcionarios e consultar auditoria.</span>
               </div>
             </>
           )}
