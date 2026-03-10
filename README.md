@@ -42,4 +42,5 @@ Frontend: `http://localhost:5173`
 ## Railway
 
 - Configure `DATABASE_URL` e `JWT_SECRET`
+- Para login delegado vindo do Ecossistema, configure `ECOSYSTEM_SSO_ISSUER`, `ECOSYSTEM_SSO_AUDIENCE` e `ECOSYSTEM_SSO_SHARED_SECRET`
 - O `railway.toml` ja executa `prisma db push` antes de subir a API

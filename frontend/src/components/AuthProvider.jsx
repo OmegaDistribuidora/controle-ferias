@@ -13,6 +13,22 @@ function readStorage() {
   }
 }
 
+function readSsoTokenFromHash() {
+  try {
+    const hash = String(window.location.hash || "").replace(/^#/, "");
+    if (!hash) return null;
+    const params = new URLSearchParams(hash);
+    return params.get("sso");
+  } catch (error) {
+    return null;
+  }
+}
+
+function clearSsoHash() {
+  const { pathname, search } = window.location;
+  window.history.replaceState(null, "", `${pathname}${search}`);
+}
+
 function getTokenExpiration(token) {
   try {
     const [, payload] = token.split(".");
@@ -29,9 +45,11 @@ function getTokenExpiration(token) {
 
 export function AuthProvider({ children }) {
   const initial = readStorage();
+  const initialSsoToken = readSsoTokenFromHash();
   const [token, setToken] = useState(initial.token || null);
   const [user, setUser] = useState(initial.user || null);
-  const [loading, setLoading] = useState(Boolean(initial.token && !initial.user));
+  const [loading, setLoading] = useState(Boolean(initialSsoToken || (initial.token && !initial.user)));
+  const [ssoError, setSsoError] = useState("");
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user }));
@@ -41,6 +59,7 @@ export function AuthProvider({ children }) {
     setUnauthorizedHandler(() => {
       setToken(null);
       setUser(null);
+      setSsoError("");
     });
 
     return () => {
@@ -49,7 +68,46 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    const ssoToken = readSsoTokenFromHash();
+    if (token || !ssoToken) {
+      return undefined;
+    }
+
+    let active = true;
+    setLoading(true);
+    setSsoError("");
+
+    apiJson("/auth/sso/exchange", {
+      method: "POST",
+      data: { token: ssoToken },
+    })
+      .then((payload) => {
+        if (!active) return;
+        setToken(payload.token);
+        setUser(payload.user);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setToken(null);
+        setUser(null);
+        setSsoError(error.message || "Falha ao validar login vindo do Ecossistema.");
+      })
+      .finally(() => {
+        clearSsoHash();
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    const pendingSsoToken = readSsoTokenFromHash();
     if (!token || user) {
+      if (pendingSsoToken && !token) {
+        return undefined;
+      }
       setLoading(false);
       return;
     }
@@ -108,8 +166,10 @@ export function AuthProvider({ children }) {
       token,
       user,
       loading,
+      ssoError,
       isAuthenticated: Boolean(token && user),
       async login(username, password) {
+        setSsoError("");
         const payload = await apiJson("/auth/login", {
           method: "POST",
           data: { username, password },
@@ -120,9 +180,10 @@ export function AuthProvider({ children }) {
       logout() {
         setToken(null);
         setUser(null);
+        setSsoError("");
       },
     }),
-    [token, user, loading]
+    [token, user, loading, ssoError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
