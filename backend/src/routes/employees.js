@@ -227,14 +227,6 @@ router.get("/:id", async (req, res) => {
     },
   });
 
-  await writeAuditLog(prisma, {
-    user: req.user,
-    action: "ADJUST_CYCLE",
-    entityType: "EMPLOYEE",
-    entityId: refreshed.id,
-    description: `Ajustou o ciclo aquisitivo de ${refreshed.name} a partir do ${describePeriod(targetPeriod.periodNumber)} para ${String(parsed.data.anchorDay).padStart(2, "0")}/${String(parsed.data.anchorMonth).padStart(2, "0")}.`,
-  });
-
   return res.json({
     employee: {
       id: refreshed.id,
@@ -419,6 +411,14 @@ router.post("/:id/cycle", async (req, res) => {
     },
   });
 
+  await writeAuditLog(prisma, {
+    user: req.user,
+    action: "ADJUST_CYCLE",
+    entityType: "EMPLOYEE",
+    entityId: refreshed.id,
+    description: `Ajustou o ciclo aquisitivo de ${refreshed.name} a partir do ${describePeriod(targetPeriod.periodNumber)} para ${String(parsed.data.anchorDay).padStart(2, "0")}/${String(parsed.data.anchorMonth).padStart(2, "0")}.`,
+  });
+
   return res.json({
     employee: {
       id: refreshed.id,
@@ -534,6 +534,7 @@ router.post("/:id/periods/:periodId/blocks", async (req, res) => {
   const periodId = Number(req.params.periodId);
   const period = await prisma.vacationPeriod.findFirst({
     where: { id: periodId, employeeId },
+    include: { employee: true },
   });
 
   if (!period) {
