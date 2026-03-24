@@ -127,6 +127,11 @@ router.post("/sso/exchange", async (req, res) => {
     return res.status(401).json({ message: "Usuario alvo nao encontrado ou inativo." });
   }
 
+  const ecosystemIsAdmin = payload?.ecosystemIsAdmin === true;
+  if (user.role === "ADMIN" && !ecosystemIsAdmin) {
+    return res.status(403).json({ message: "Usuario do Ecossistema nao pode acessar administrador via SSO." });
+  }
+
   markConsumedSsoToken(payload?.jti, payload?.exp);
 
   const token = issueLocalToken(user);

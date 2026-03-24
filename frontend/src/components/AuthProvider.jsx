@@ -46,9 +46,12 @@ function getTokenExpiration(token) {
 export function AuthProvider({ children }) {
   const initial = readStorage();
   const initialSsoToken = readSsoTokenFromHash();
-  const [token, setToken] = useState(initial.token || null);
-  const [user, setUser] = useState(initial.user || null);
-  const [loading, setLoading] = useState(Boolean(initialSsoToken || (initial.token && !initial.user)));
+  const shouldPreferSso = Boolean(initialSsoToken);
+  const [token, setToken] = useState(shouldPreferSso ? null : initial.token || null);
+  const [user, setUser] = useState(shouldPreferSso ? null : initial.user || null);
+  const [loading, setLoading] = useState(
+    Boolean(initialSsoToken || (!shouldPreferSso && initial.token && !initial.user))
+  );
   const [ssoError, setSsoError] = useState("");
 
   useEffect(() => {
@@ -69,11 +72,13 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const ssoToken = readSsoTokenFromHash();
-    if (token || !ssoToken) {
+    if (!ssoToken) {
       return undefined;
     }
 
     let active = true;
+    setToken(null);
+    setUser(null);
     setLoading(true);
     setSsoError("");
 
@@ -100,7 +105,7 @@ export function AuthProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     const pendingSsoToken = readSsoTokenFromHash();
